@@ -1,112 +1,244 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  Habit,
+  addHabit,
+  deleteHabit,
+  getAllHabits,
+  toggleHabitCompletion,
+} from '@/service/database';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-export default function TabTwoScreen() {
+export default function HabitsScreen() {
+  const colorScheme = useColorScheme();
+  const [habits, setHabits] = useState<Habit[]>([]);2
+  const [newHabitName, setNewHabitName] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadHabits = useCallback(async () => {
+    try {
+      const data = await getAllHabits();
+      setHabits(data);
+    } catch (error) {
+      console.error('Error loading habits:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHabits();
+  }, [loadHabits]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadHabits();
+    setRefreshing(false);
+  }, [loadHabits]);
+
+  const handleAddHabit = async () => {
+    if (newHabitName.trim() === '') {
+      Alert.alert('Error', 'Por favor ingresa un nombre para el hábito');
+      return;
+    }
+
+    try {
+      await addHabit(newHabitName.trim());
+      setNewHabitName('');
+      await loadHabits();
+    } catch (error) {
+      console.error('Error adding habit:', error);
+      Alert.alert('Error', 'No se pudo agregar el hábito');
+    }
+  };
+
+  const handleToggleHabit = async (id: number, completed: number) => {
+    try {
+      await toggleHabitCompletion(id, completed === 0 ? 1 : 0);
+      await loadHabits();
+    } catch (error) {
+      console.error('Error toggling habit:', error);
+    }
+  };
+
+  const handleDeleteHabit = (id: number) => {
+    Alert.alert(
+      'Eliminar Hábito',
+      '¿Estás seguro de que quieres eliminar este hábito?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteHabit(id);
+              await loadHabits();
+            } catch (error) {
+              console.error('Error deleting habit:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const renderHabitItem = ({ item }: { item: Habit }) => (
+    <ThemedView style={styles.habitItem}>
+      <TouchableOpacity
+        style={styles.habitContent}
+        onPress={() => handleToggleHabit(item.id, item.completed)}
+        onLongPress={() => handleDeleteHabit(item.id)}
+      >
+        <View style={[
+          styles.checkbox,
+          item.completed === 1 && styles.checkboxChecked
+        ]}>
+          {item.completed === 1 && (
+            <Text style={styles.checkmark}>✓</Text>
+          )}
+        </View>
+        <ThemedText style={[
+          styles.habitName,
+          item.completed === 1 && styles.habitCompleted
+        ]}>
+          {item.name}
+        </ThemedText>
+      </TouchableOpacity>
+    </ThemedView>
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
+    <ThemedView style={styles.container}>
+      <ThemedText type="title" style={styles.title}>
+        Mis Hábitos
+      </ThemedText>
+
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="Nuevo hábito..."
+          placeholderTextColor={colorScheme === 'dark' ? '#888' : '#999'}
+          value={newHabitName}
+          onChangeText={setNewHabitName}
+          onSubmitEditing={handleAddHabit}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+        <TouchableOpacity style={styles.addButton} onPress={handleAddHabit}>
+          <Text style={styles.addButtonText}>+</Text>
+        </TouchableOpacity>
+      </View>
+
+      <FlatList
+        data={habits}
+        renderItem={renderHabitItem}
+        keyExtractor={(item) => item.id.toString()}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+          />
+        }
+        ListEmptyComponent={
+          <ThemedText style={styles.emptyText}>
+            No hay hábitos aún. ¡Agrega uno!
+          </ThemedText>
+        }
+      />
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    padding: 16,
   },
-  titleContainer: {
+  title: {
+    textAlign: 'center',
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  inputContainer: {
     flexDirection: 'row',
-    gap: 8,
+    marginBottom: 20,
+  },
+  input: {
+    flex: 1,
+    height: 50,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    marginRight: 10,
+  },
+  addButton: {
+    width: 50,
+    height: 50,
+    backgroundColor: '#4CAF50',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButtonText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  habitItem: {
+    marginBottom: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  habitContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#4CAF50',
+  },
+  checkmark: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  habitName: {
+    fontSize: 16,
+    flex: 1,
+  },
+  habitCompleted: {
+    textDecorationLine: 'line-through',
+    opacity: 0.6,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 40,
+    opacity: 0.6,
   },
 });
